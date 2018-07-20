@@ -1,0 +1,176 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Creates an ECS Service for the Airflow Scheduler
+
+Parameters:
+  # Non-default Parameters
+  EcsStackName:
+    Type: String
+    Description: Stack name of the ECS Cluster
+  PostgresDbStackName:
+    Type: String
+    Description: Stack name of the Postgres database
+  RedisStackName:
+    Type: String
+    Description: Stack name of Redis
+  EcsTaskRole:
+    Type: String
+    Description: The ECS task role
+  EcsAutoScaleRoleArn:
+    Type: String
+    Description: The ECS autoscaling role ARN
+  AirflowDockerImage:
+    Type: String
+    Description: The Airflow Docker image
+    MinLength: 1
+    ConstraintDescription: Must be a valid docker image
+
+  KmsDataKey:
+    Type: String
+    Description: >
+      The KMS Data Key Ciphertext (Base64 encoded). If this is not provided the password parameters
+      will be treated as plaintext.
+    NoEcho: true
+    Default: ''
+  FernetKeyEnc:
+    Type: String
+    Description: Fernet Key for Airflow encrypted using the KMS key
+    NoEcho: true
+    Default: ''
+  PostgresPasswordEnc:
+    Type: String
+    Description: Postgres database password encrypted using the KMS key
+    NoEcho: true
+
+  RedisDatabaseNumber:
+    Type: Number
+    Description: The database number for the Redis cluster
+    Default: 0
+    MinValue: 0
+    ConstraintDescription: Please specify a number >= 0
+
+  # Default Parameters (a.k.a constants)
+  Priority:
+    Type: Number
+    Description: The priority to register with the Load Balancer
+    Default: 103
+  AppName:
+    Type: String
+    Description: Name of app. Should be the same as docker repository name.
+    Default: 'scheduler'
+
+  # Tags
+  Project:
+    Type: String
+    Description: Project tag
+    MinLength: 5
+    ConstraintDescription: Must be a string of length >= 5
+  Team:
+    Type: String
+    Description: Team tag
+    MinLength: 5
+    ConstraintDescription: Must be a string of length >= 5
+  Environment:
+    Type: String
+    Description: Team tag
+    AllowedValues: [dev, sandbox, prod, load, test]
+    ConstraintDescription: Must be one of the available environment types
+  Component:
+    Type: String
+    Description: Component tag
+    MinLength: 3
+    ConstraintDescription: Must be a string of length >= 3
+
+Resources:
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref AWS::StackName
+      TaskRoleArn: !Ref EcsTaskRole
+      Volumes:
+        - Name: dags
+          Host:
+            SourcePath:
+              Fn::Join:
+                - '/'
+                - - Fn::ImportValue: !Sub '${EcsStackName}-AirflowDagS3BucketMountPath'
+                  - dags
+      ContainerDefinitions:
+        - Name: !Ref AppName
+          Image: !Ref AirflowDockerImage
+          Command:
+            - scheduler
+          Cpu: 512
+          MemoryReservation: 1024
+          Essential: true
+          MountPoints:
+            - SourceVolume: dags
+              ContainerPath: /usr/local/airflow/dags
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Fn::ImportValue: !Sub '${EcsStackName}-CloudWatchLogGroup'
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs-service
+          Environment:
+            - Name: REGION
+              Value: !Ref AWS::Region
+            - Name: EXECUTOR
+              Value: Celery
+            - Name: LOAD_EX
+              Value: n
+            - Name: KMS_DATA_KEY
+              Value: !Ref KmsDataKey
+            - Name: FERNET_KEY_ENC
+              Value: !Ref FernetKeyEnc
+            - Name: AIRFLOW_HOME
+              Value: /usr/local/airflow
+            - Name: POSTGRES_HOST
+              Value:
+                Fn::ImportValue: !Sub '${PostgresDbStackName}-EndpointAddress'
+            - Name: POSTGRES_PORT
+              Value:
+                Fn::ImportValue: !Sub '${PostgresDbStackName}-EndpointPort'
+            - Name: POSTGRES_DATABASE
+              Value:
+                Fn::ImportValue: !Sub '${PostgresDbStackName}-DatabaseName'
+            - Name: POSTGRES_USER
+              Value:
+                Fn::ImportValue: !Sub '${PostgresDbStackName}-MasterUserName'
+            - Name: POSTGRES_PASSWORD_ENC
+              Value: !Ref PostgresPasswordEnc
+            - Name: REDIS_HOST
+              Value:
+                Fn::ImportValue: !Sub '${RedisStackName}-PrimaryAddress'
+            - Name: REDIS_PORT
+              Value:
+                Fn::ImportValue: !Sub '${RedisStackName}-PrimaryPort'
+            - Name: REDIS_DB_NUM
+              Value: !Ref RedisDatabaseNumber
+            - Name: GUNICORN_CMD_ARGS
+              Value: '--forwarded-allow-ips *'
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Ref AppName
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: 1
+      Cluster:
+        Fn::ImportValue: !Sub '${EcsStackName}-ClusterName'
+      PlacementStrategies:
+        - Field: attribute:ecs.availability-zone
+          Type: spread
+        - Field: instanceId
+          Type: spread
+
+Outputs:
+  Service:
+    Description: The name of the ECS service created
+    Value: !GetAtt Service.Name
+  TaskFamily:
+    Description: The family of the task created for the service
+    Value: !Ref AWS::StackName
+  TaskArn:
+    Description: The ARN of the task created for the service
+    Value: !Ref TaskDefinition

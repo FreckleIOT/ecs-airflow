@@ -1,0 +1,46 @@
+#!/bin/bash
+
+set -e
+
+function cleanup() {
+	echo "Cleanup."
+}
+trap cleanup EXIT
+
+export PATH=$PATH:/usr/local/airflow/.local/bin
+
+# If KMS_DATA_KEY is provided, assume we need to decrypt and export some sensitive environment variables.
+# Otherwise, the container will function same as before.
+if [[ -n ${KMS_DATA_KEY} ]]; then
+	# NOTE: Do not export plaintext KMS data key.
+	echo "Decrypting KMS data key..."
+	kms_data_key_plaintext=$(aws kms decrypt --region ${REGION} \
+		--ciphertext-blob fileb://<(echo ${KMS_DATA_KEY} | base64 -d) \
+		--query Plaintext --output text)
+
+	if [[ -n "${FERNET_KEY_ENC}" ]]; then
+		echo "Decrypting FERNET_KEY_ENC..."
+		export FERNET_KEY=$(openssl enc -d -aes256 -k <(echo "${kms_data_key_plaintext}") \
+			-in <(echo "${FERNET_KEY_ENC}" | base64 -d))
+	fi
+
+	if [[ -n "${POSTGRES_PASSWORD_ENC}" ]]; then
+		echo "Decrypting POSTGRES_PASSWORD_ENC..."
+		export POSTGRES_PASSWORD=$(openssl enc -d -aes256 -k <(echo "${kms_data_key_plaintext}") \
+			-in <(echo "${POSTGRES_PASSWORD_ENC}" | base64 -d))
+	fi
+
+	if [[ -n "${GOOGLE_OAUTH_CLIENT_SECRET_ENC}" ]]; then
+		echo "Decryption GOOGLE_OAUTH_CLIENT_SECRET..."
+		export AIRFLOW__GOOGLE__CLIENT_SECRET=$(openssl enc -d -aes256 -k <(echo "${kms_data_key_plaintext}") \
+			-in <(echo "${GOOGLE_OAUTH_CLIENT_SECRET_ENC}" | base64 -d))
+	fi
+fi
+
+echo "===> ENV Variables ..."
+env | sort | \
+	sed -e "s/_PASSWORD=.*/_PASSWORD=[hidden]/g" \
+		-e "s/_SECRET=.*/_SECRET=[hidden]/g" \
+		-e "s/_KEY=.*/_KEY=[hidden]/g"
+
+exec "$@"

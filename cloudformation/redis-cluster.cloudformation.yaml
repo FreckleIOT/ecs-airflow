@@ -1,0 +1,145 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: |
+  A CloudFormation template to provision a Redis cluster (master-slave and not sharded) in an existing VPC.
+  We recommend deploying Redis in the private subnets since sets up a Redis cluster that is open.
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC in which to deploy Redis
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets (Private recommended) in which to create container instances
+  RedisCacheNodeType:
+    Type: String
+    Description: Cache instance type
+    AllowedValues: [
+      cache.t2.micro, cache.t2.small, cache.t2.medium,
+      cache.m4.large, cache.m4.xlarge, cache.m4.2xlarge, cache.m4.4xlarge, cache.m4.10xlarge,
+      cache.r3.large, cache.r3.xlarge, cache.r3.2xlarge, cache.r3.4xlarge, cache.r3.8xlarge,
+      cache.r4.large, cache.r4.xlarge, cache.r4.2xlarge, cache.r4.4xlarge, cache.r4.8xlarge, cache.r4.16xlarge
+    ]
+    ConstraintDescription: Must be one of the available instance types
+    Default: cache.t2.micro
+  NumCacheNodes:
+    Type: Number
+    Description: Number of Redis instances
+    MinValue: 1
+    MaxValue: 3
+    ConstraintDescription: Must be a number between 1 and 3
+    Default: 3
+  RedisVersion:
+    Type: String
+    Description: Redis Version
+    AllowedValues: ['4.0.10', '3.2.10', '3.2.6']
+    ConstraintDescription: Must be one of the available Redis versions
+    Default: '4.0.10'
+  AllowedCIDR:
+    Type: String
+    Description: Allow the IPv4 CIDR range access to Postgres
+    Default: '0.0.0.0/0'
+    AllowedPattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$'
+    ConstraintDescription: Must be a valid CIDR range like 172.31.0.0/16
+  Project:
+    Type: String
+    Description: Project tag
+    MinLength: 5
+    ConstraintDescription: Must be a string of length >= 5
+  Team:
+    Type: String
+    Description: Team tag
+    MinLength: 5
+    ConstraintDescription: Must be a string of length >= 5
+  Environment:
+    Type: String
+    Description: Team tag
+    AllowedValues: [dev, sandbox, prod, load, test]
+    ConstraintDescription: Must be one of the available environment types
+  Component:
+    Type: String
+    Description: Component tag
+    MinLength: 3
+    ConstraintDescription: Must be a string of length >= 3
+
+Conditions:
+  IsCreditBasedInstance: !Equals [!Select [1, !Split ['.', !Ref RedisCacheNodeType]], 't2']
+
+Resources:
+  RedisComponentSG:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupName: !Sub '${AWS::StackName} Redis Access'
+      GroupDescription: Security Group which grants anyone access to Redis
+      VpcId: !Ref 'VpcId'
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: "6379"
+          ToPort: "6379"
+          CidrIp: !Ref AllowedCIDR
+      Tags:
+        - Key: Project
+          Value: !Ref Project
+        - Key: Team
+          Value: !Ref Team
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Component
+          Value: !Ref Component
+
+  RedisSubnetGroup:
+    Type: "AWS::ElastiCache::SubnetGroup"
+    Properties:
+      CacheSubnetGroupName: !Sub 'Subnet-Group-${AWS::StackName}'
+      Description: !Sub 'Redis cache subnet group for ${AWS::StackName}'
+      SubnetIds: !Ref 'SubnetIds'
+
+  # if you need sharding in addition to master-slave replication then see here:
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-elasticache-replicationgroup.html#cfn-elasticache-replicationgroup-nodegroupconfiguration
+  # There is an example at the bottom
+  ElastiCacheCluster:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupId: !Ref 'AWS::StackName'
+      AutomaticFailoverEnabled: !If [IsCreditBasedInstance, 'false', 'true']
+      AutoMinorVersionUpgrade: true
+      CacheNodeType: !Ref 'RedisCacheNodeType'
+      NumCacheClusters: !Ref 'NumCacheNodes'
+      Engine: 'redis'
+      EngineVersion: !Ref 'RedisVersion'
+      CacheSubnetGroupName: !Ref 'RedisSubnetGroup'
+      ReplicationGroupDescription: !Sub 'Redis cluster - ${AWS::StackName}'
+      SnapshotRetentionLimit: !If [IsCreditBasedInstance, !Ref 'AWS::NoValue', 2]
+      SecurityGroupIds:
+        - !Ref 'RedisComponentSG'
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}'
+        - Key: Project
+          Value: !Ref Project
+        - Key: Team
+          Value: !Ref Team
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Component
+          Value: !Ref Component
+
+Outputs:
+  PrimaryAddress:
+    Description: 'The DNS address of the primary read and write node'
+    Value: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-PrimaryAddress'
+  PrimaryPort:
+    Description: 'The number of the port that the primary read and write node is listening on'
+    Value: !GetAtt ElastiCacheCluster.PrimaryEndPoint.Port
+    Export:
+      Name: !Sub '${AWS::StackName}-PrimaryPort'
+  SecondaryAddresses:
+    Description: 'A string with a list of endpoints for the read-only replicas'
+    Value: !GetAtt ElastiCacheCluster.ReadEndPoint.Addresses
+    Export:
+      Name: !Sub '${AWS::StackName}-SecondaryAddresses'
+  SecondaryPorts:
+    Description: 'A string with a list of ports for the read-only replicas'
+    Value: !GetAtt ElastiCacheCluster.ReadEndPoint.Ports
+    Export:
+      Name: !Sub '${AWS::StackName}-SecondaryPorts'

@@ -1,0 +1,298 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Creates an ECS Service for the Airflow Web Server and Flower UI
+
+Parameters:
+  EcsStackName:
+    Type: String
+    Description: Stack name of the ECS Cluster
+  PostgresDbStackName:
+    Type: String
+    Description: Stack name of the Postgres database
+  RedisStackName:
+    Type: String
+    Description: Stack name of Redis
+
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+    Description: The Route 53 Hosted Zone ID
+  HostedZoneName:
+    Type: String
+    Description: The Route 53 Hosted Zone Name
+  DNSPrefix:
+    Type: String
+    Description: |
+      The prefix used in the Route 53 entry for the application. For non-production use the environment and AppName
+      together; e.g. dev-airflow. For production just use AppName; e.g. airflow.
+    MinLength: 5
+    ConstraintDescription: Must be a string of length >= 5
+  AirflowDockerImage:
+    Type: String
+    Description: The Airflow Docker image
+    MinLength: 1
+    ConstraintDescription: Must be a valid docker image
+
+  KmsDataKey:
+    Type: String
+    Description: >
+      The KMS Data Key Ciphertext (Base64 encoded). If this is not provided the password parameters
+      will be treated as plaintext.
+    Default: ''
+    NoEcho: true
+  FernetKeyEnc:
+    Type: String
+    Description: Fernet Key for Airflow encrypted using the KMS key
+    MinLength: 1
+    ConstraintDescription: Encrypted Fernet key must be specified
+    NoEcho: true
+  PostgresPasswordEnc:
+    Type: String
+    Description: Postgres database password encrypted using the KMS key
+    MinLength: 1
+    ConstraintDescription: Encrypted Postgres password must be specified
+    NoEcho: true
+  GoogleOAuthClientId:
+    Type: String
+    Description: Google OAuth Client ID
+  GoogleOAuthClientSecretEnc:
+    Type: String
+    Description: Encrypted Google OAuth Client Secret
+  GoogleOAuthCallback:
+    Type: String
+    Description: The OAuth callback route
+    Default: '/oauth2callback'
+  GoogleOAuthDomain:
+    Type: String
+    Description: The valid domain names (comma separated) allowed for login
+
+  RedisDatabaseNumber:
+    Type: Number
+    Description: The database number for the Redis cluster
+    MinValue: 0
+    ConstraintDescription: Please specify a number >= 0
+    Default: 0
+
+  MinWebserverTasks:
+    Type: Number
+    Description: Minimum number of Airflow Webserver tasks to scale in to
+    MinValue: 1
+    ConstraintDescription: Please specify a number >= 1
+    Default: 1
+  MaxWebserverTasks:
+    Type: Number
+    Description: Maximum number of Airflow Webserver tasks to scale out to
+    MinValue: 1
+    ConstraintDescription: Please specify a number >= 1
+    Default: 3
+  DesiredWebserverTasks:
+    Type: Number
+    Description: Desired number of Airflow Webserver tasks to run
+    MinValue: 1
+    ConstraintDescription: Please specify a number >= 1
+    Default: 1
+  MinFlowerTasks:
+    Type: Number
+    Description: Minimum number of Celery Flower tasks to scale in to
+    MinValue: 1
+    ConstraintDescription: Please specify a number >= 1
+    Default: 1
+  MaxFlowerTasks:
+    Type: Number
+    Description: Maximum number of Celery Flower tasks to scale out to
+    MinValue: 1
+    ConstraintDescription: Please specify a number >= 1
+    Default: 3
+  DesiredFlowerTasks:
+    Type: Number
+    Description: Desired number of Celery Flower tasks to run
+    MinValue: 1
+    ConstraintDescription: Please specify a number >= 1
+    Default: 1
+  MinWorkerTasks:
+    Type: Number
+    Description: Minimum number of Airflow Worker tasks to scale in to
+    MinValue: 1
+    ConstraintDescription: Please specify a number >= 1
+    Default: 1
+  MaxWorkerTasks:
+    Type: Number
+    Description: Maximum number of Airflow Worker tasks to scale out to
+    MinValue: 1
+    ConstraintDescription: Please specify a number >= 1
+    Default: 4
+  DesiredWorkerTasks:
+    Type: Number
+    Description: Desired number of Airflow Worker tasks to run
+    MinValue: 1
+    ConstraintDescription: Please specify a number >= 1
+    Default: 1
+
+  # Tags
+  Project:
+    Type: String
+    Description: Project tag
+    MinLength: 5
+    ConstraintDescription: Must be a string of length >= 5
+  Team:
+    Type: String
+    Description: Team tag
+    MinLength: 5
+    ConstraintDescription: Must be a string of length >= 5
+  Environment:
+    Type: String
+    Description: Team tag
+    AllowedValues: [dev, sandbox, prod, load, test]
+    ConstraintDescription: Must be one of the available environment types
+  Component:
+    Type: String
+    Description: Component tag
+    MinLength: 3
+    ConstraintDescription: Must be a string of length >= 3
+
+Resources:
+  EcsTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: ECS-Service
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: '*'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+
+  EcsAutoScaleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: application-autoscaling.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceAutoscaleRole
+
+  Webserver:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./Webserver.yaml
+      Parameters:
+        EcsStackName: !Ref EcsStackName
+        PostgresDbStackName: !Ref PostgresDbStackName
+        RedisStackName: !Ref RedisStackName
+        EcsTaskRole: !Ref EcsTaskRole
+        EcsAutoScaleRoleArn: !GetAtt EcsAutoScaleRole.Arn
+        HostedZoneId: !Ref HostedZoneId
+        HostedZoneName: !Ref HostedZoneName
+        DNSPrefix: !Ref DNSPrefix
+        AirflowDockerImage: !Ref AirflowDockerImage
+        RedisDatabaseNumber: !Ref RedisDatabaseNumber
+        KmsDataKey: !Ref KmsDataKey
+        FernetKeyEnc: !Ref FernetKeyEnc
+        PostgresPasswordEnc: !Ref PostgresPasswordEnc
+        GoogleOAuthClientSecretEnc: !Ref GoogleOAuthClientSecretEnc
+        GoogleOAuthClientId: !Ref GoogleOAuthClientId
+        GoogleOAuthCallback: !Ref GoogleOAuthCallback
+        GoogleOAuthDomain: !Ref GoogleOAuthDomain
+        AppMinCount: !Ref MinWebserverTasks
+        AppMaxCount: !Ref MaxWebserverTasks
+        AppDesiredCount: !Ref DesiredWebserverTasks
+        Project: !Ref Project
+        Team: !Ref Team
+        Component: !Ref Component
+        Environment: !Ref Environment
+
+  Flower:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: [Webserver]
+    Properties:
+      TemplateURL: ./flower.yaml
+      Parameters:
+        EcsStackName: !Ref EcsStackName
+        PostgresDbStackName: !Ref PostgresDbStackName
+        RedisStackName: !Ref RedisStackName
+        EcsTaskRole: !Ref EcsTaskRole
+        EcsAutoScaleRoleArn: !GetAtt EcsAutoScaleRole.Arn
+        HostedZoneId: !Ref HostedZoneId
+        HostedZoneName: !Ref HostedZoneName
+        DNSPrefix: !Ref DNSPrefix
+        AirflowDockerImage: !Ref AirflowDockerImage
+        RedisDatabaseNumber: !Ref RedisDatabaseNumber
+        KmsDataKey: !Ref KmsDataKey
+        FernetKeyEnc: !Ref FernetKeyEnc
+        PostgresPasswordEnc: !Ref PostgresPasswordEnc
+        AppMinCount: !Ref MinFlowerTasks
+        AppMaxCount: !Ref MaxFlowerTasks
+        AppDesiredCount: !Ref DesiredFlowerTasks
+        Project: !Ref Project
+        Team: !Ref Team
+        Component: !Ref Component
+        Environment: !Ref Environment
+
+  Scheduler:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: [Webserver]
+    Properties:
+      TemplateURL: ./scheduler.yaml
+      Parameters:
+        EcsStackName: !Ref EcsStackName
+        PostgresDbStackName: !Ref PostgresDbStackName
+        RedisStackName: !Ref RedisStackName
+        EcsTaskRole: !Ref EcsTaskRole
+        EcsAutoScaleRoleArn: !GetAtt EcsAutoScaleRole.Arn
+        AirflowDockerImage: !Ref AirflowDockerImage
+        RedisDatabaseNumber: !Ref RedisDatabaseNumber
+        KmsDataKey: !Ref KmsDataKey
+        FernetKeyEnc: !Ref FernetKeyEnc
+        PostgresPasswordEnc: !Ref PostgresPasswordEnc
+        Project: !Ref Project
+        Team: !Ref Team
+        Component: !Ref Component
+        Environment: !Ref Environment
+
+  Workers:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: [Webserver, Scheduler]
+    Properties:
+      TemplateURL: ./worker.yaml
+      Parameters:
+        EcsStackName: !Ref EcsStackName
+        PostgresDbStackName: !Ref PostgresDbStackName
+        RedisStackName: !Ref RedisStackName
+        EcsTaskRole: !Ref EcsTaskRole
+        EcsAutoScaleRoleArn: !GetAtt EcsAutoScaleRole.Arn
+        AirflowDockerImage: !Ref AirflowDockerImage
+        RedisDatabaseNumber: !Ref RedisDatabaseNumber
+        KmsDataKey: !Ref KmsDataKey
+        FernetKeyEnc: !Ref FernetKeyEnc
+        PostgresPasswordEnc: !Ref PostgresPasswordEnc
+        AppMinCount: !Ref MinWorkerTasks
+        AppMaxCount: !Ref MaxWorkerTasks
+        AppDesiredCount: !Ref DesiredWorkerTasks
+        Project: !Ref Project
+        Team: !Ref Team
+        Component: !Ref Component
+        Environment: !Ref Environment
+
+Outputs:
+  AirflowURL:
+    Description: The Airflow URL
+    Value: !GetAtt Webserver.Outputs.URL
+  FlowerURL:
+    Description: The Flower UI URL
+    Value: !GetAtt Flower.Outputs.URL

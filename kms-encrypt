@@ -1,0 +1,97 @@
+#!/bin/bash -e
+
+[[ "${DEBUG}" == 'true' ]] && set -o xtrace
+
+prg=$0
+function usage() {
+    echo "Usage:"
+    s="  $prg"
+    s="${s} --kms-key-id=<id>"
+    s="${s} --param=<param>"
+    s="${s} --secret=<secret>"
+    s="${s} --config-path=<path to config>"
+    echo "${s}"
+}
+
+# Parse command line arguments
+for i in "$@"; do
+  case $i in
+    -h)
+      usage
+      exit 0
+      ;;
+    --kms-key-id=*)
+      kms_key_id="${i#*=}"
+      shift
+      ;;
+    --param=*)
+      param="${i#*=}"
+      shift
+      ;;
+    --secret=*)
+      secret="${i#*=}"
+      shift
+      ;;
+    --config-path=*)
+      config_path="${i#*=}"
+      shift
+      ;;
+    *)
+      echo "ERROR: Unkown option $i"
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+# Check parameters
+parse_errors=()
+if [[ -z ${kms_key_id} ]]; then
+  parse_errors+=("ERROR: Please specify --kms-key-id")
+fi
+if [[ -z ${param} ]]; then
+  parse_errors+=("ERROR: Please specify --param")
+fi
+if [[ -z ${secret} ]]; then
+  parse_errors+=("ERROR: Please specify --secret")
+fi
+if [[ -z ${config_path} ]]; then
+  parse_errors+=("ERROR: Please specify --config-path")
+else
+  eval config_path=${config_path}
+fi
+if [[ ${#parse_errors[@]} -gt 0 ]]; then
+  for parse_error in "${parse_errors[@]}"; do
+    echo "$parse_error"
+  done
+  usage
+  exit 1
+fi
+
+# See if data key exists
+kms_data_key_ciphertext=$(jq -r '.Parameters.KmsDataKey' ${config_path})
+if [[ -z ${kms_data_key_ciphertext} ]] || [[ "${kms_data_key_ciphertext}" == "null" ]]; then
+    echo "Creating a new data key..."
+    kms_data_key_json=$(aws kms generate-data-key --key-id ${kms_key_id} --key-spec AES_256)
+    kms_data_key_plaintext=$(echo ${kms_data_key_json} | jq -r '.Plaintext')
+    kms_data_key_ciphertext=$(echo ${kms_data_key_json} | jq -r '.CiphertextBlob')
+else
+    echo "Decoding data key..."
+    kms_data_key_plaintext=$(aws kms decrypt \
+        --ciphertext-blob fileb://<(echo ${kms_data_key_ciphertext} | base64 -D) \
+        --query Plaintext --output text)
+fi
+
+# Use KMS data key to encrypt and then base64 encode
+echo "Encoding secret..."
+enc_cmd="openssl enc -e -aes256 -k <(echo \"${kms_data_key_plaintext}\") -in <(echo \"${secret}\") | base64 | tr -d '\n'"
+encoded_secret=$(docker run -it python:3.6-slim /bin/bash -c "${enc_cmd}")
+
+# Write back to config file
+echo "Writing configuration file '${config_path}'..."
+output=$(cat ${config_path} | \
+    jq ".Parameters.KmsDataKey = \"${kms_data_key_ciphertext}\"" | \
+    jq ".Parameters.${param} = \"${encoded_secret}\"" \
+    )
+
+echo "${output}" > ${config_path}

@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+
+# This script assumes you have a folder containing master.yaml template that references other templates which in turn could
+# also nest other template files. For now, the hierarchy of the folder is assumed to be flat.
+#
+# For example,
+# cloudformation
+#       |
+#       +---- airflow-ecs-services
+#                      |
+#                      +---- master.yaml
+#                      |
+#                      +---- webserver.yaml
+#                      |
+#                      +---- flower.yaml
+#                      |
+#                      +---- workers.yaml
+#
+# The script will package the nested templates to an s3 prefix and the compiled master.yaml file that references
+# those S3 paths instead of the relative folder paths.
+
+[[ "${DEBUG}" == 'true' ]] && set -o xtrace
+
+prg=$0
+function usage() {
+    echo "Usage:"
+    echo "  $prg <nested-stack-folder-name> <stack-suffix> <path-to-config> TagKey1=TagValue1 TagKey2=TagValue2 ..."
+}
+
+# OSX specific way to get absolute path
+realpath() {
+    [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+}
+
+nested_stack_folder_name=$1
+shift
+if [[ -z "${nested_stack_folder_name}" ]]; then
+    echo "Please specify a path to the folder containing CloudFormation nested stack"
+    usage
+    exit 1
+fi
+
+stack_name=$1
+shift
+if [[ -z "${stack_name}" ]]; then
+    echo "Please specify a stack name"
+    usage
+    exit 1
+fi
+
+stack_config=$1
+shift
+if [[ -z "${stack_config}" ]]; then
+    echo "Please specify the path to the parameter configuration file"
+    usage
+    exit 1
+fi
+
+# Convert to absolute path
+stack_config=$(realpath ${stack_config})
+
+tags=$@
+
+pushd cloudformation/${nested_stack_folder_name}
+
+readonly CFNS=$(grep --include="*.yaml" --exclude=compiled.yaml --exclude-dir={.idea} -rnwl . -e 'AWSTemplateFormatVersion')
+for cfn in ${CFNS}; do
+    echo "Validating template ${cfn}"
+    ERRORS=$(aws cloudformation validate-template --template-body file://${cfn} | jq .Error)
+
+    if [ "${ERRORS}" != "null" ]; then
+        echo "${cfn} has errors: ${ERRORS}" && exit 1
+    fi
+done
+
+echo "Packaging compiled template"
+aws cloudformation package --template-file master.yaml \
+    --s3-bucket freckle-infrastructure-"${ENV:-dev}" --s3-prefix airflow/${nested_stack_folder_name} --force-upload \
+    --output-template-file compiled.yaml
+aws s3 cp compiled.yaml s3://freckle-infrastructure-${ENV:-dev}/airflow/${nested_stack_folder_name}/master.yaml
+
+# Need to build the command because --parameter-overrides barfs when there are values with spaces
+cmd="aws cloudformation deploy --template-file compiled.yaml --stack-name \"${stack_name}\" --capabilities CAPABILITY_IAM"
+params=$(jq -r '.Parameters | to_entries | map("\"\(.key)=\(.value|tostring)\"")|.[]' ${stack_config} | tr '\n' ' ')
+if [[ -n ${params} ]]; then
+    cmd="${cmd} --parameter-overrides ${params}"
+fi
+
+required_tags=$(jq -r '.Parameters | {Project,Team,Environment,Component} | to_entries | map("\"\(.key)=\(.value|tostring)\"") | .[]' ${stack_config} | tr '\n' ' ')
+tags="${tags} ${required_tags}"
+if [[ -n ${tags} ]]; then
+    cmd="${cmd} --tags ${tags}"
+fi
+
+# TODO: Add ability to see changes before commiting to deployment in case there will be a replacement of critical resources like databases
+
+echo "Deploying template..."
+eval ${cmd}
+
+echo "Deployed stack successfully"

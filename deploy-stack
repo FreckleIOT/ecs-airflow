@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+
+[[ "${DEBUG}" == 'true' ]] && set -o xtrace
+
+prg=$0
+function usage() {
+    echo "Usage:"
+    echo "  $prg <stack path> <stack-name> <path-to-config> TagKey1=TagValue1 TagKey2=TagValue2 ..."
+}
+
+# OSX specific way to get absolute path
+realpath() {
+    [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+}
+
+stack_path=$1
+shift
+if [[ -z "${stack_path}" ]]; then
+    echo "Please specify a path to the CloudFormation template"
+    usage
+    exit 1
+fi
+
+stack_name=$1
+shift
+if [[ -z "${stack_name}" ]]; then
+    echo "Please specify a stack name"
+    usage
+    exit 1
+fi
+
+stack_config=$1
+shift
+if [[ -z "${stack_config}" ]]; then
+    echo "Please specify the path to the parameter configuration file"
+    usage
+    exit 1
+fi
+
+# Convert to absolute path
+stack_config=$(realpath ${stack_config})
+
+tags=$@
+
+readonly CFNS=$(grep --include="${stack_path}" --exclude-dir={.idea} -rnwl . -e 'AWSTemplateFormatVersion')
+for cfn in ${CFNS}; do
+    echo "Validating template ${cfn}"
+    ERRORS=$(aws cloudformation validate-template --template-body file://${cfn} | jq .Error)
+
+    if [ "${ERRORS}" != "null" ]; then
+        echo "${cfn} has errors: ${ERRORS}" && exit 1
+    fi
+done
+
+# Need to build the command because --parameter-overrides barfs when there are values with spaces
+# NOTE: SENSITIVE_PARAMS environment can be set to override sensitive key/values.
+#       For example:
+#           SENSITIVE_PARAMS='"Key1=Secret1" "Key2=Secret2"' ./deploy_stack ....
+echo "Deploying template..."
+cmd="aws cloudformation deploy --template-file ${stack_path} --stack-name \"${stack_name}\" --capabilities CAPABILITY_IAM"
+params=$(jq -r '.Parameters | to_entries | map("\"\(.key)=\(.value|tostring)\"")|.[]' ${stack_config} | tr '\n' ' ')
+if [[ -n ${params} ]]; then
+    cmd="${cmd} --parameter-overrides ${params} ${SENSITIVE_PARAMS}"
+fi
+
+required_tags=$(jq -r '.Parameters | {Project,Team,Environment,Component} | to_entries | map("\"\(.key)=\(.value|tostring)\"") | .[]' ${stack_config} | tr '\n' ' ')
+tags="${tags} ${required_tags}"
+if [[ -n ${tags} ]]; then
+    cmd="${cmd} --tags ${tags}"
+fi
+
+# TODO: Add ability to see changes before commiting to deployment in case there will be a replacement of critical resources like databases
+
+eval ${cmd}
+
+echo "Deployed stack successfully"

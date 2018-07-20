@@ -1,0 +1,44 @@
+#!/bin/bash -e
+
+prg=$0
+function usage() {
+    echo "Usage:"
+    echo "    ${prg} <aws account id> <region> <version> [image1 image2 ...]"
+}
+
+aws_account_id=$1
+shift
+if [[ -z ${aws_account_id} ]]; then
+    echo "ERROR: Please enter your AWS account ID"
+    usage
+    exit 1
+fi
+
+region=$1
+shift
+if [[ -z ${region} ]]; then
+    echo "ERROR: Please enter the AWS region"
+    usage
+    exit 1
+fi
+
+version=$1
+shift
+if [[ -z ${version} ]]; then
+    echo "ERROR: Please enter the image version"
+    usage
+    exit 1
+fi
+images=$@
+if [[ -z ${images} ]]; then
+    echo Building all images
+    images="airflow"
+fi
+
+for image in ${images}; do
+	pushd docker/${image}
+	docker build . -t ${image}:${version}
+	docker tag ${image}:${version} ${aws_account_id}.dkr.ecr.${region}.amazonaws.com/${image}:${version}
+	docker push ${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com/${image}:${version}
+	popd
+done

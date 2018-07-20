@@ -1,0 +1,293 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Creates an ECS Service for the Airflow Worker
+
+Parameters:
+  # Non-default Parameters
+  EcsStackName:
+    Type: String
+    Description: Stack name of the ECS Cluster
+  PostgresDbStackName:
+    Type: String
+    Description: Stack name of the Postgres database
+  RedisStackName:
+    Type: String
+    Description: Stack name of Redis
+  EcsTaskRole:
+    Type: String
+    Description: The ECS task role
+  EcsAutoScaleRoleArn:
+    Type: String
+    Description: The ECS autoscaling role ARN
+  AirflowDockerImage:
+    Type: String
+    Description: The Airflow Docker image
+    MinLength: 1
+    ConstraintDescription: Must be a valid docker image
+  AppDesiredCount:
+    Type: Number
+    Description: Number of instances of the service to run
+    Default: 1
+  AppMaxCount:
+    Type: Number
+    Description: Max number of instances of the service to scale out to
+    Default: 4
+  AppMinCount:
+    Type: Number
+    Description: Min number of instances of the service to scale in to
+    Default: 1
+  AutoScaleHighThreshold:
+    Type: Number
+    Description: Percentage of service CPU utilization that is considered high
+    Default: 75
+  AutoScaleLowThreshold:
+    Type: Number
+    Description: Percentage of service CPU utilization that is considered low
+    Default: 15
+
+  KmsDataKey:
+    Type: String
+    Description: >
+      The KMS Data Key Ciphertext (Base64 encoded). If this is not provided the password parameters
+      will be treated as plaintext.
+    NoEcho: true
+    Default: ''
+  FernetKeyEnc:
+    Type: String
+    Description: Fernet Key for Airflow encrypted using the KMS key
+    NoEcho: true
+    Default: ''
+  PostgresPasswordEnc:
+    Type: String
+    Description: Postgres database password encrypted using the KMS key
+    NoEcho: true
+
+  RedisDatabaseNumber:
+    Type: Number
+    Description: The database number for the Redis cluster
+    MinValue: 0
+    ConstraintDescription: Must be a number >= 0
+    Default: 0
+
+  # Default Parameters (a.k.a constants)
+  Priority:
+    Type: Number
+    Description: The priority to register with the Load Balancer
+    Default: 104
+  AppName:
+    Type: String
+    Description: Name of app. Should be the same as docker repository name.
+    Default: 'workers'
+  AppContainerPort:
+    Type: Number
+    Description: Port the app runs on in the image
+    Default: 8793
+
+  # Tags
+  Project:
+    Type: String
+    Description: Project tag
+    MinLength: 5
+    ConstraintDescription: Must be a string of length >= 5
+  Team:
+    Type: String
+    Description: Team tag
+    MinLength: 5
+    ConstraintDescription: Must be a string of length >= 5
+  Environment:
+    Type: String
+    Description: Team tag
+    AllowedValues: [dev, sandbox, prod, load, test]
+    ConstraintDescription: Must be one of the available environment types
+  Component:
+    Type: String
+    Description: Component tag
+    MinLength: 3
+    ConstraintDescription: Must be a string of length >= 3
+
+Resources:
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref AWS::StackName
+      TaskRoleArn: !Ref EcsTaskRole
+      Volumes:
+        - Name: dags
+          Host:
+            SourcePath:
+              Fn::Join:
+                - '/'
+                - - Fn::ImportValue: !Sub '${EcsStackName}-AirflowDagS3BucketMountPath'
+                  - dags
+      ContainerDefinitions:
+        - Name: !Ref AppName
+          Image: !Ref AirflowDockerImage
+          Command:
+            - worker
+          Cpu: 512
+          MemoryReservation: 1024
+          Essential: true
+          MountPoints:
+            - SourceVolume: dags
+              ContainerPath: /usr/local/airflow/dags
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Fn::ImportValue: !Sub '${EcsStackName}-CloudWatchLogGroup'
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs-service
+          PortMappings:
+            # This might be an issue if multiple containers attempt to run on same ECS instance
+            - ContainerPort: !Ref AppContainerPort
+              HostPort: 0
+          Environment:
+            - Name: REGION
+              Value: !Ref AWS::Region
+            - Name: EXECUTOR
+              Value: Celery
+            - Name: LOAD_EX
+              Value: n
+            - Name: KMS_DATA_KEY
+              Value: !Ref KmsDataKey
+            - Name: FERNET_KEY_ENC
+              Value: !Ref FernetKeyEnc
+            - Name: AIRFLOW_HOME
+              Value: /usr/local/airflow
+            - Name: POSTGRES_HOST
+              Value:
+                Fn::ImportValue: !Sub '${PostgresDbStackName}-EndpointAddress'
+            - Name: POSTGRES_PORT
+              Value:
+                Fn::ImportValue: !Sub '${PostgresDbStackName}-EndpointPort'
+            - Name: POSTGRES_DATABASE
+              Value:
+                Fn::ImportValue: !Sub '${PostgresDbStackName}-DatabaseName'
+            - Name: POSTGRES_USER
+              Value:
+                Fn::ImportValue: !Sub '${PostgresDbStackName}-MasterUserName'
+            - Name: POSTGRES_PASSWORD_ENC
+              Value: !Ref PostgresPasswordEnc
+            - Name: REDIS_HOST
+              Value:
+                Fn::ImportValue: !Sub '${RedisStackName}-PrimaryAddress'
+            - Name: REDIS_PORT
+              Value:
+                Fn::ImportValue: !Sub '${RedisStackName}-PrimaryPort'
+            - Name: REDIS_DB_NUM
+              Value: !Ref RedisDatabaseNumber
+            - Name: GUNICORN_CMD_ARGS
+              Value: '--forwarded-allow-ips *'
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Ref AppName
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: !Ref AppDesiredCount
+      Cluster:
+        Fn::ImportValue: !Sub '${EcsStackName}-ClusterName'
+      PlacementStrategies:
+        - Field: attribute:ecs.availability-zone
+          Type: spread
+        - Field: instanceId
+          Type: spread
+  ScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MinCapacity: !Ref AppMinCount
+      MaxCapacity: !Ref AppMaxCount
+      ResourceId: !Join
+        - /
+        - - service
+          - Fn::ImportValue: !Sub '${EcsStackName}-ClusterName'
+          - !GetAtt Service.Name
+      RoleARN: !Ref EcsAutoScaleRoleArn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+  ScaleUpPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Join
+        - '-'
+        - - !GetAtt Service.Name
+          - ScaleUpPolicy
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref ScalableTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: PercentChangeInCapacity
+        Cooldown: 60
+        MetricAggregationType: Average
+        StepAdjustments:
+          - MetricIntervalLowerBound: 0
+            MetricIntervalUpperBound: 10
+            ScalingAdjustment: 10
+          - MetricIntervalLowerBound: 10
+            ScalingAdjustment: 30
+  ScaleDownPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Join
+        - '-'
+        - - !GetAtt Service.Name
+          - ScaleDownPolicy
+      PolicyType: StepScaling
+      ScalingTargetId: !Ref ScalableTarget
+      StepScalingPolicyConfiguration:
+        AdjustmentType: PercentChangeInCapacity
+        Cooldown: 60
+        MetricAggregationType: Average
+        StepAdjustments:
+          - MetricIntervalLowerBound: -10
+            MetricIntervalUpperBound: 0
+            ScalingAdjustment: -10
+          - MetricIntervalUpperBound: -10
+            ScalingAdjustment: -30
+  CpuUtilAlarmHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Cpu utilization alarm for ECS service for high cpu usage
+      AlarmActions:
+        - !Ref ScaleUpPolicy
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '2'
+      Threshold: !Ref AutoScaleHighThreshold
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ClusterName
+          Value:
+            Fn::ImportValue: !Sub '${EcsStackName}-ClusterName'
+        - Name: ServiceName
+          Value: !GetAtt Service.Name
+  CpuUtilAlarmLow:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Cpu utilization alarm for ECS service for low cpu usage
+      AlarmActions:
+        - !Ref ScaleDownPolicy
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '2'
+      Threshold: !Ref AutoScaleLowThreshold
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+        - Name: ClusterName
+          Value:
+            Fn::ImportValue: !Sub '${EcsStackName}-ClusterName'
+        - Name: ServiceName
+          Value: !GetAtt Service.Name
+
+Outputs:
+  Service:
+    Description: The name of the ECS service created
+    Value: !GetAtt Service.Name
+  TaskFamily:
+    Description: The family of the task created for the service
+    Value: !Ref AWS::StackName
+  TaskArn:
+    Description: The ARN of the task created for the service
+    Value: !Ref TaskDefinition
