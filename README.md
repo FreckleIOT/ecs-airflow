@@ -40,6 +40,12 @@ used by `puckel/docker-airflow:1.9.0-4` which is used for our ECS
 docker image. If there is a mismatch between OpenSSL versions the
 containers will not be able to decrypt passwords and keys.
 
+### S3 Bucket for Airflow DAGs and Plugins
+
+You will need to create an S3 bucket to store the DAGs and plugins.
+You can have separate buckets based on environment or organize
+dags within the same bucket under different key prefixes.
+
 ## Deploying Cloudformation Stack
 
 ### Build the docker image
