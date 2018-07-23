@@ -432,17 +432,40 @@ Resources:
             Statement:
               - Effect: Allow
                 Resource:
+                  - '*'
+                Action:
+                  - 's3:HeadBucket'
+              - Effect: Allow
+                Resource:
                   - !Sub 'arn:aws:s3:::${AirflowDagS3Bucket}'
                 Action:
                   - 's3:ListBucket'
+                  - 's3:GetBucketLocation'
+                  - 's3:ListBucketMultipartUploads'
               - Effect: Allow
                 Resource:
                   - !Sub 'arn:aws:s3:::${AirflowDagS3Bucket}/*'
                 Action:
-                  - 's3:List*'
-                  - 's3:Get*'
-                  - 's3:Put*'
-                  - 's3:Delete*'
+                  - 's3:AbortMultipartUpload'
+                  - 's3:DeleteObject'
+                  - 's3:DeleteObjectTagging'
+                  - 's3:DeleteObjectVersion'
+                  - 's3:DeleteObjectVersionTagging'
+                  - 's3:GetObject'
+                  - 's3:GetObjectAcl'
+                  - 's3:GetObjectTagging'
+                  - 's3:GetObjectTorrent'
+                  - 's3:GetObjectVersion'
+                  - 's3:GetObjectVersionAcl'
+                  - 's3:GetObjectVersionTagging'
+                  - 's3:GetObjectVersionTorrent'
+                  - 's3:ListMultipartUploadParts'
+                  - 's3:PutObject'
+                  - 's3:PutObjectAcl'
+                  - 's3:PutObjectTagging'
+                  - 's3:PutObjectVersionAcl'
+                  - 's3:PutObjectVersionTagging'
+                  - 's3:RestoreObject'
         - PolicyName: KMS-Decrypt
           PolicyDocument:
             Version: '2012-10-17'
@@ -521,16 +544,20 @@ Resources:
                 echo "Installing s3fuse..."
                 make install
 
-                echo "Configuring mount..."
-                iam_role_name=${EcsInstanceRole}
+                echo "Creating mount folder '/mnt/${AirflowDagS3Bucket}'..."
                 mkdir -p /mnt/${AirflowDagS3Bucket}
+
+                echo "Configuring mount point '/mnt/${AirflowDagS3Bucket}'..."
+                iam_role_name=${EcsInstanceRole}
                 uid=$(id -u ec2-user)
                 gid=$(id -g ec2-user)
                 echo "s3fs#${AirflowDagS3Bucket}  /mnt/${AirflowDagS3Bucket}  fuse  _netdev,allow_other,iam_role=${!iam_role_name},umask=022,uid=${!uid},gid=${!gid},use_cache=/root/cache 0 0" >> /etc/fstab
 
+                echo "Mounting the S3 bucket '${AirflowDagS3Bucket}' to '/mnt/${AirflowDagS3Bucket}'..."
                 mount /mnt/${AirflowDagS3Bucket}
 
                 # Create DAG folder on mounted bucket
+                echo "Ensuring DAG folder '/mnt/${AirflowDagS3Bucket}/dags' exists..."
                 mkdir -p /mnt/${AirflowDagS3Bucket}/dags
 
                 echo "Setup s3fuse complete."

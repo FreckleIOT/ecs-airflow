@@ -247,10 +247,6 @@ fernet_key=$(docker run puckel/docker-airflow python -c "from cryptography.ferne
     --config-path=../ecs-airflow-config/dev-airflow-ecs-services.json
 
 ./kms-encrypt --kms-key-id=${kms_key_id} \
-    --param=AirflowPasswordEnc --secret='changeme' \
-    --config-path=../ecs-airflow-config/dev-airflow-ecs-services.json
-
-./kms-encrypt --kms-key-id=${kms_key_id} \
     --param=GoogleOAuthClientSecretEnc --secret='changeme' \
     --config-path=../ecs-airflow-config/dev-airflow-ecs-services.json
 
