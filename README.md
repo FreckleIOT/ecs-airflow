@@ -155,7 +155,7 @@ subnets.
       "LoadBalancerSubnetIds": "subnet-cccccccc,subnet-dddddddd",
       "EcsInstanceType": "m5.large",
       "UseSSL": "yes",
-      "BastionSecurityGroupId": "sg-xxxxxxxxxxxxxxxxx",
+      "BastionStack": "changeme",
       "CertificateArn": "arn:aws:acm:us-west-2:************:certificate/********-****-****-****-************",
       "LoadBalancerType": "internet-facing",
       "AllowedCidrIp1": "changeme",
@@ -214,6 +214,12 @@ parameters.
     "MinWorkerTasks": 1,
     "MaxWorkerTasks": 4,
     "DesiredWorkerTasks": 1,
+    "SMTPUser": "changeme",
+    "SMTPPassword": "changeme",
+    "SMTPHost": "changeme",
+    "SMTPPort": "change",
+    "SMTPStartTLS": "changeme",
+    "SMTPSSL": "changeme",
     "Project": "Airflow Project",
     "Team": "Airflow Team",
     "Environment": "dev",
@@ -244,6 +250,10 @@ fernet_key=$(docker run puckel/docker-airflow python -c "from cryptography.ferne
 
 ./kms-encrypt --kms-key-id=${kms_key_id} \
     --param=GoogleOAuthClientSecretEnc --secret="${secret}" \
+    --config-path=../ecs-airflow-config/dev-airflow-ecs-services.json
+
+./kms-encrypt --kms-key-id=${kms_key_id} \
+    --param=SMTPPasswordEnc --secret="${secret}" \
     --config-path=../ecs-airflow-config/dev-airflow-ecs-services.json
 ```
 

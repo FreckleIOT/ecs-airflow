@@ -86,7 +86,7 @@ if [[ -n ${params} ]]; then
     cmd="${cmd} --parameter-overrides ${params}"
 fi
 
-required_tags=$(jq -r '.Parameters | {Project,Team,Environment,Component} | to_entries | map("\"\(.key)=\(.value|tostring)\"") | .[]' ${stack_config} | tr '\n' ' ')
+required_tags=$(jq -r '.Parameters | {Organization,Project,Team,Environment,Component} | with_entries(select(.value != null)) | to_entries | map("\"\(.key)=\(.value|tostring)\"") | .[]' ${stack_config} | tr '\n' ' ')
 tags="${tags} ${required_tags}"
 if [[ -n ${tags} ]]; then
     cmd="${cmd} --tags ${tags}"

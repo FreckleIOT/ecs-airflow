@@ -35,6 +35,12 @@ if [[ -n ${KMS_DATA_KEY} ]]; then
 		export AIRFLOW__GOOGLE__CLIENT_SECRET=$(openssl enc -d -aes256 -k <(echo "${kms_data_key_plaintext}") \
 			-in <(echo "${GOOGLE_OAUTH_CLIENT_SECRET_ENC}" | base64 -d))
 	fi
+
+	if [[ -n "${SMTP_PASSWORD_ENC}" ]]; then
+		echo "Decryption SMTP_PASSWORD_ENC..."
+		export AIRFLOW__SMTP__PASSWORD=$(openssl enc -d -aes256 -k <(echo "${kms_data_key_plaintext}") \
+			-in <(echo "${SMTP_PASSWORD_ENC}" | base64 -d))
+	fi
 fi
 
 echo "===> ENV Variables ..."

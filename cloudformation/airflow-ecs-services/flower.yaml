@@ -95,9 +95,9 @@ Parameters:
     Default: 15
 
   # Tags
-  Project:
+  Organization:
     Type: String
-    Description: Project tag
+    Description: Organization tag
     MinLength: 5
     ConstraintDescription: Must be a string of length >= 5
   Team:
@@ -151,8 +151,8 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub 'Airflow Flower Target Group - ${AWS::StackName}'
-        - Key: Project
-          Value: !Ref Project
+        - Key: Organization
+          Value: !Ref Organization
         - Key: Team
           Value: !Ref Team
         - Key: Environment

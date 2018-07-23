@@ -72,6 +72,38 @@ Parameters:
     ConstraintDescription: Please specify a number >= 0
     Default: 0
 
+  SMTPUser:
+    Type: String
+    Description: SMTP user name
+    Default: ''
+  SMTPPasswordEnc:
+    Type: String
+    Description: Encrypted SMTP password
+    NoEcho: True
+    Default: ''
+  SMTPHost:
+    Type: String
+    Description: SMTP host
+    Default: ''
+  SMTPPort:
+    Type: Number
+    Description: SMTP port
+    AllowedValues: [25, 465, 587]
+    ConstraintDescription: Must be a valid SMTP port
+    Default: 25
+  SMTPStartTLS:
+    Type: String
+    Description: SMTP Start TLS
+    AllowedValues: ['True', 'False']
+    ConstraintDescription: "Must be either 'True' or 'False'"
+    Default: 'True'
+  SMTPSSL:
+    Type: String
+    Description: SMTP SSL
+    AllowedValues: ['True', 'False']
+    ConstraintDescription: "Must be either 'True' or 'False'"
+    Default: 'False'
+
   MinWebserverTasks:
     Type: Number
     Description: Minimum number of Airflow Webserver tasks to scale in to
@@ -128,9 +160,9 @@ Parameters:
     Default: 1
 
   # Tags
-  Project:
+  Organization:
     Type: String
-    Description: Project tag
+    Description: Organization tag
     MinLength: 5
     ConstraintDescription: Must be a string of length >= 5
   Team:
@@ -212,7 +244,13 @@ Resources:
         AppMinCount: !Ref MinWebserverTasks
         AppMaxCount: !Ref MaxWebserverTasks
         AppDesiredCount: !Ref DesiredWebserverTasks
-        Project: !Ref Project
+        SMTPUser: !Ref SMTPUser
+        SMTPPasswordEnc: !Ref SMTPPasswordEnc
+        SMTPHost: !Ref SMTPHost
+        SMTPPort: !Ref SMTPPort
+        SMTPStartTLS: !Ref SMTPStartTLS
+        SMTPSSL: !Ref SMTPSSL
+        Organization: !Ref Organization
         Team: !Ref Team
         Component: !Ref Component
         Environment: !Ref Environment
@@ -239,7 +277,7 @@ Resources:
         AppMinCount: !Ref MinFlowerTasks
         AppMaxCount: !Ref MaxFlowerTasks
         AppDesiredCount: !Ref DesiredFlowerTasks
-        Project: !Ref Project
+        Organization: !Ref Organization
         Team: !Ref Team
         Component: !Ref Component
         Environment: !Ref Environment
@@ -260,7 +298,13 @@ Resources:
         KmsDataKey: !Ref KmsDataKey
         FernetKeyEnc: !Ref FernetKeyEnc
         PostgresPasswordEnc: !Ref PostgresPasswordEnc
-        Project: !Ref Project
+        SMTPUser: !Ref SMTPUser
+        SMTPPasswordEnc: !Ref SMTPPasswordEnc
+        SMTPHost: !Ref SMTPHost
+        SMTPPort: !Ref SMTPPort
+        SMTPStartTLS: !Ref SMTPStartTLS
+        SMTPSSL: !Ref SMTPSSL
+        Organization: !Ref Organization
         Team: !Ref Team
         Component: !Ref Component
         Environment: !Ref Environment
@@ -284,7 +328,13 @@ Resources:
         AppMinCount: !Ref MinWorkerTasks
         AppMaxCount: !Ref MaxWorkerTasks
         AppDesiredCount: !Ref DesiredWorkerTasks
-        Project: !Ref Project
+        SMTPUser: !Ref SMTPUser
+        SMTPPasswordEnc: !Ref SMTPPasswordEnc
+        SMTPHost: !Ref SMTPHost
+        SMTPPort: !Ref SMTPPort
+        SMTPStartTLS: !Ref SMTPStartTLS
+        SMTPSSL: !Ref SMTPSSL
+        Organization: !Ref Organization
         Team: !Ref Team
         Component: !Ref Component
         Environment: !Ref Environment

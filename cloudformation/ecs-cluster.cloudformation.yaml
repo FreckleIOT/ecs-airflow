@@ -32,9 +32,9 @@ Parameters:
     AllowedValues: ['yes', 'no']
     Description: Must be either yes or no
     Default: 'yes'
-  BastionSecurityGroupId:
+  BastionStack:
     Type: String
-    Description: Bastion Hosts security group Id. Leave empty if not required
+    Description: Stack for the Bastion Hosts
   LoadBalancerType:
     Type: String
     Description: ECS ALB type
@@ -85,14 +85,19 @@ Parameters:
     MinValue: 1
     ConstraintDescription: Must be a number >= 1
     Default: 180
+  ElasticsearchLogsStack:
+    Type: String
+    Description: Name of CloudFormation stack hosting the Elasticsearch domain for logs
+    MinLength: 1
+    ConstraintDescription: Must be a string of length > 1
   AirflowDagS3Bucket:
     Type: String
     Description: Name of S3 bucket containing Airflow DAGs
     AllowedPattern: '^[A-Za-z0-9][A-Za-z0-9\-]{1,61}[A-Za-z0-9]$'
     ConstraintDescription: Please specify a valid bucket name
-  Project:
+  Organization:
     Type: String
-    Description: Project tag
+    Description: Organization tag
     MinLength: 5
     ConstraintDescription: Must be a string of length >= 5
   Team:
@@ -125,7 +130,7 @@ Metadata:
           - AsgMaxSize
           - RollingUpdateMinEC2InService
           - AllowSSH
-          - BastionSecurityGroupId
+          - BastionStack
       - Label:
           default: "Load Balancer"
         Parameters:
@@ -205,7 +210,7 @@ Mappings:
 Conditions:
   EnableSSL: !Equals [!Ref 'UseSSL', 'yes']
   DisableSSL: !Not [!Condition EnableSSL]
-  EnableSSH: !And [!Equals [!Ref 'AllowSSH', 'yes'], !Not [!Equals [!Ref BastionSecurityGroupId, '']]]
+  EnableSSH: !And [!Equals [!Ref 'AllowSSH', 'yes'], !Not [!Equals [!Ref BastionStack, '']]]
   AllowCidrIp1: !Not [ !Equals [ !Ref AllowedCidrIp1, '' ] ]
   EnableLoadBalancerHTTP1: !And [!Condition DisableSSL, !Condition AllowCidrIp1]
   EnableLoadBalancerHTTPS1: !And [!Condition EnableSSL, !Condition AllowCidrIp1]
@@ -216,6 +221,14 @@ Resources:
     Properties:
       LogGroupName: !Ref CloudWatchLogGroup
       RetentionInDays: !Ref CloudWatchLogRetentionInDays
+  LogGroupSubscriptionFilter:
+    Type: AWS::Logs::SubscriptionFilter
+    DependsOn: [LogGroup]
+    Properties:
+      LogGroupName: !Ref CloudWatchLogGroup
+      DestinationArn:
+        Fn::ImportValue: !Sub '${ElasticsearchLogsStack}-LambdaFunctionArn'
+      FilterPattern: ''
 
   # Security Groups
   #   - Load Balancer Security Group
@@ -244,8 +257,8 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub 'ECS Container Instance SG - ${AWS::StackName}'
-        - Key: Project
-          Value: !Ref Project
+        - Key: Organization
+          Value: !Ref Organization
         - Key: Team
           Value: !Ref Team
         - Key: Environment
@@ -256,20 +269,21 @@ Resources:
   EcsInstanceIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      GroupId: !Ref 'EcsSecurityGroup'
+      GroupId: !Ref EcsSecurityGroup
       IpProtocol: tcp
       FromPort: 32768
       ToPort: 61000
-      SourceSecurityGroupId: !Ref 'EcsSecurityGroup'
+      SourceSecurityGroupId: !Ref EcsSecurityGroup
   EcsInstanceSSHIngress:
     Condition: EnableSSH
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      GroupId: !Ref 'EcsSecurityGroup'
+      GroupId: !Ref EcsSecurityGroup
       IpProtocol: tcp
       FromPort: 22
       ToPort: 22
-      SourceSecurityGroupId: !Ref 'BastionSecurityGroupId'
+      SourceSecurityGroupId:
+        Fn::ImportValue: !Sub '${BastionStack}-BastionSecurityGroupID'
 
   # Application Load Balancer
   LoadBalancerSecurityGroup:
@@ -281,8 +295,8 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub 'ECS Load Balancer SG - ${AWS::StackName}'
-        - Key: Project
-          Value: !Ref Project
+        - Key: Organization
+          Value: !Ref Organization
         - Key: Team
           Value: !Ref Team
         - Key: Environment
@@ -320,8 +334,8 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub 'ECS ALB - ${AWS::StackName}'
-        - Key: Project
-          Value: !Ref Project
+        - Key: Organization
+          Value: !Ref Organization
         - Key: Team
           Value: !Ref Team
         - Key: Environment
@@ -358,8 +372,8 @@ Resources:
       HealthCheckTimeoutSeconds: 10
       HealthyThresholdCount: 4
       Tags:
-        - Key: Project
-          Value: !Ref Project
+        - Key: Organization
+          Value: !Ref Organization
         - Key: Team
           Value: !Ref Team
         - Key: Environment
@@ -673,8 +687,8 @@ Resources:
         - Key: Name
           Value: !Sub 'ECS Container Instance - ${AWS::StackName}'
           PropagateAtLaunch: true
-        - Key: Project
-          Value: !Ref Project
+        - Key: Organization
+          Value: !Ref Organization
           PropagateAtLaunch: true
         - Key: Team
           Value: !Ref Team

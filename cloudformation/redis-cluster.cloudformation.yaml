@@ -39,9 +39,9 @@ Parameters:
     Default: '0.0.0.0/0'
     AllowedPattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$'
     ConstraintDescription: Must be a valid CIDR range like 172.31.0.0/16
-  Project:
+  Organization:
     Type: String
-    Description: Project tag
+    Description: Organization tag
     MinLength: 5
     ConstraintDescription: Must be a string of length >= 5
   Team:
@@ -65,19 +65,19 @@ Conditions:
 
 Resources:
   RedisComponentSG:
-    Type: "AWS::EC2::SecurityGroup"
+    Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: !Sub '${AWS::StackName} Redis Access'
       GroupDescription: Security Group which grants anyone access to Redis
-      VpcId: !Ref 'VpcId'
+      VpcId: !Ref VpcId
       SecurityGroupIngress:
-        - IpProtocol: "tcp"
-          FromPort: "6379"
-          ToPort: "6379"
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
           CidrIp: !Ref AllowedCIDR
       Tags:
-        - Key: Project
-          Value: !Ref Project
+        - Key: Organization
+          Value: !Ref Organization
         - Key: Team
           Value: !Ref Team
         - Key: Environment
@@ -86,7 +86,7 @@ Resources:
           Value: !Ref Component
 
   RedisSubnetGroup:
-    Type: "AWS::ElastiCache::SubnetGroup"
+    Type: AWS::ElastiCache::SubnetGroup
     Properties:
       CacheSubnetGroupName: !Sub 'Subnet-Group-${AWS::StackName}'
       Description: !Sub 'Redis cache subnet group for ${AWS::StackName}'
@@ -101,20 +101,20 @@ Resources:
       ReplicationGroupId: !Ref 'AWS::StackName'
       AutomaticFailoverEnabled: !If [IsCreditBasedInstance, 'false', 'true']
       AutoMinorVersionUpgrade: true
-      CacheNodeType: !Ref 'RedisCacheNodeType'
-      NumCacheClusters: !Ref 'NumCacheNodes'
+      CacheNodeType: !Ref RedisCacheNodeType
+      NumCacheClusters: !Ref NumCacheNodes
       Engine: 'redis'
-      EngineVersion: !Ref 'RedisVersion'
-      CacheSubnetGroupName: !Ref 'RedisSubnetGroup'
+      EngineVersion: !Ref RedisVersion
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
       ReplicationGroupDescription: !Sub 'Redis cluster - ${AWS::StackName}'
       SnapshotRetentionLimit: !If [IsCreditBasedInstance, !Ref 'AWS::NoValue', 2]
       SecurityGroupIds:
-        - !Ref 'RedisComponentSG'
+        - !Ref RedisComponentSG
       Tags:
         - Key: Name
           Value: !Sub '${AWS::StackName}'
-        - Key: Project
-          Value: !Ref Project
+        - Key: Organization
+          Value: !Ref Organization
         - Key: Team
           Value: !Ref Team
         - Key: Environment

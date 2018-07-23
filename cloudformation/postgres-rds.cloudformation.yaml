@@ -70,13 +70,13 @@ Parameters:
   PostgresMasterUsername:
     Type: String
     Description: The master user name
-    AllowedPattern: '^[A-Za-z0-9]{5,}$'
+    MinLength: 5
     ConstraintDescription: Must be alphanumeric string of length >= 5
     Default: postgres
   PostgresMasterPassword:
     Type: String
     Description: The password for the master user
-    AllowedPattern: '^[A-Za-z0-9]{8,}$'
+    MinLength: 8
     ConstraintDescription: Must be a string of length >= 8
     Default: postgres
     NoEcho: true
@@ -134,9 +134,9 @@ Parameters:
     Description: ARN of the KMS Key used for encrypting the storage
     AllowedPattern: '^arn:aws:kms:[^:]+:[0-9]+:key/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
     ConstraintDescription: Please enter a valid ARN for a KMS Key
-  Project:
+  Organization:
     Type: String
-    Description: Project tag
+    Description: Organization tag
     MinLength: 5
     ConstraintDescription: Must be a string of length >= 5
   Team:
@@ -203,8 +203,8 @@ Resources:
           ToPort: 5432
           CidrIp: !Ref AllowedCIDR # Allow access from anywhere (this is why we recommend you deploy this in the private subnets so only people in the VPC can access this resource)
       Tags:
-        - Key: Project
-          Value: !Ref Project
+        - Key: Organization
+          Value: !Ref Organization
         - Key: Team
           Value: !Ref Team
         - Key: Environment
@@ -220,8 +220,8 @@ Resources:
       Tags:
         - Key: Name
           Value: !Ref AWS::StackName
-        - Key: Project
-          Value: !Ref Project
+        - Key: Organization
+          Value: !Ref Organization
         - Key: Team
           Value: !Ref Team
         - Key: Environment
@@ -257,8 +257,8 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub '${AWS::StackName}'
-        - Key: Project
-          Value: !Ref Project
+        - Key: Organization
+          Value: !Ref Organization
         - Key: Team
           Value: !Ref Team
         - Key: Environment
