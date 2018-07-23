@@ -235,25 +235,21 @@ kms_key_id=changeme
     --param=PostgresPasswordEnc --secret='changeme' \
     --config-path=../ecs-airflow-config/dev-airflow-ecs-services.json
 
-./kms-encrypt --kms-key-id=${kms_key_id} \
-    --param=RedisAuthTokenEnc --secret='changeme' \
-    --config-path=../ecs-airflow-config/dev-airflow-ecs-services.json
-
 fernet_key=$(docker run puckel/docker-airflow python -c "from cryptography.fernet import Fernet; FERNET_KEY = Fernet.generate_key().decode(); print(FERNET_KEY)")
 ./kms-encrypt --kms-key-id=${kms_key_id} \
     --param=FernetKeyEnc --secret="${fernet_key}" \
     --config-path=../ecs-airflow-config/dev-airflow-ecs-services.json
 
 ./kms-encrypt --kms-key-id=${kms_key_id} \
-    --param=AirflowPasswordEnc --secret="${secret}" \
+    --param=AirflowPasswordEnc --secret='changeme' \
     --config-path=../ecs-airflow-config/dev-airflow-ecs-services.json
 
 ./kms-encrypt --kms-key-id=${kms_key_id} \
-    --param=GoogleOAuthClientSecretEnc --secret="${secret}" \
+    --param=GoogleOAuthClientSecretEnc --secret='changeme' \
     --config-path=../ecs-airflow-config/dev-airflow-ecs-services.json
 
 ./kms-encrypt --kms-key-id=${kms_key_id} \
-    --param=SMTPPasswordEnc --secret="${secret}" \
+    --param=SMTPPasswordEnc --secret='changeme' \
     --config-path=../ecs-airflow-config/dev-airflow-ecs-services.json
 ```
 

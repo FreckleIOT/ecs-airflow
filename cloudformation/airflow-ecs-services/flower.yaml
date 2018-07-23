@@ -128,7 +128,7 @@ Resources:
       HostedZoneId: !Ref HostedZoneId
       SetIdentifier: !Ref AWS::StackName
       Weight: 50
-      Name: !Sub '${DNSPrefix}-flower.${HostedZoneName}'
+      Name: !Sub '${DNSPrefix}-monitor.${HostedZoneName}'
       Type: A
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
