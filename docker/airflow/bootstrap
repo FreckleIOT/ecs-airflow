@@ -38,7 +38,7 @@ if [[ -n ${KMS_DATA_KEY} ]]; then
 
 	if [[ -n "${SMTP_PASSWORD_ENC}" ]]; then
 		echo "Decryption SMTP_PASSWORD_ENC..."
-		export AIRFLOW__SMTP__PASSWORD=$(openssl enc -d -aes256 -k <(echo "${kms_data_key_plaintext}") \
+		export AIRFLOW__SMTP__SMTP_PASSWORD=$(openssl enc -d -aes256 -k <(echo "${kms_data_key_plaintext}") \
 			-in <(echo "${SMTP_PASSWORD_ENC}" | base64 -d))
 	fi
 fi

@@ -103,6 +103,12 @@ Parameters:
     AllowedValues: ['True', 'False']
     ConstraintDescription: "Must be either 'True' or 'False'"
     Default: 'False'
+  SMTPFrom:
+    Type: String
+    Description: SMTP From Email
+    AllowedPattern: '^([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6})?$'
+    ConstraintDescription: Must be a valid email address. If using Amazon SES, it has to be a verified email address.
+    Default: ''
 
   MinWebserverTasks:
     Type: Number
@@ -250,6 +256,7 @@ Resources:
         SMTPPort: !Ref SMTPPort
         SMTPStartTLS: !Ref SMTPStartTLS
         SMTPSSL: !Ref SMTPSSL
+        SMTPFrom: !Ref SMTPFrom
         Organization: !Ref Organization
         Team: !Ref Team
         Component: !Ref Component
@@ -304,6 +311,7 @@ Resources:
         SMTPPort: !Ref SMTPPort
         SMTPStartTLS: !Ref SMTPStartTLS
         SMTPSSL: !Ref SMTPSSL
+        SMTPFrom: !Ref SMTPFrom
         Organization: !Ref Organization
         Team: !Ref Team
         Component: !Ref Component
@@ -334,6 +342,7 @@ Resources:
         SMTPPort: !Ref SMTPPort
         SMTPStartTLS: !Ref SMTPStartTLS
         SMTPSSL: !Ref SMTPSSL
+        SMTPFrom: !Ref SMTPFrom
         Organization: !Ref Organization
         Team: !Ref Team
         Component: !Ref Component

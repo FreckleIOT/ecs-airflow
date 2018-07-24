@@ -52,15 +52,14 @@ dags within the same bucket under different key prefixes.
 
 Run the following command:
 ```bash
-aws ecr get-login --no-include-email --region us-west-2
+eval $(aws ecr get-login --no-include-email --region us-west-2)
 ```
 It will return a command to login to ECR. Run that command to login.
 
 To build the image make sure to change the Account ID:
 ```bash
-export AWS_REGION=us-west-2
 aws_account_id=changeme
-./build-docker-image ${aws_account_id}
+./build-docker-image ${aws_account_id} us-west-2 0.0.4
 ```
 
 ### Postgres (RDS)

@@ -100,6 +100,12 @@ Parameters:
     AllowedValues: ['True', 'False']
     ConstraintDescription: "Must be either 'True' or 'False'"
     Default: 'False'
+  SMTPFrom:
+    Type: String
+    Description: SMTP From Email
+    AllowedPattern: '^([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6})?$'
+    ConstraintDescription: Must be a valid email address. If using Amazon SES, it has to be a verified email address.
+    Default: ''
 
   # Default Parameters (a.k.a constants)
   Priority:
@@ -210,18 +216,20 @@ Resources:
               Value: !Ref RedisDatabaseNumber
             - Name: GUNICORN_CMD_ARGS
               Value: '--forwarded-allow-ips *'
-            - Name: AIRFLOW__SMTP__USER
+            - Name: AIRFLOW__SMTP__SMTP_USER
               Value: !Ref SMTPUser
             - Name: SMTP_PASSWORD_ENC
               Value: !Ref SMTPPasswordEnc
-            - Name: AIRFLOW__SMTP__HOST
+            - Name: AIRFLOW__SMTP__SMTP_HOST
               Value: !Ref SMTPHost
-            - Name: AIRFLOW__SMTP__PORT
-              Value:  !Ref SMTPPort
-            - Name: AIRFLOW__SMTP__STARTTLS
+            - Name: AIRFLOW__SMTP__SMTP_PORT
+              Value: !Ref SMTPPort
+            - Name: AIRFLOW__SMTP__SMTP_STARTTLS
               Value: !Ref SMTPStartTLS
-            - Name: AIRFLOW__SMTP__SSL
+            - Name: AIRFLOW__SMTP__SMTP_SSL
               Value: !Ref SMTPSSL
+            - Name: AIRFLOW__SMTP__SMTP_MAIL_FROM
+              Value: !Ref SMTPFrom
 
   Service:
     Type: AWS::ECS::Service
