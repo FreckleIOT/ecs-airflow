@@ -181,31 +181,35 @@ Mappings:
 
   AWSRegionToAMI:
     us-east-2:
-      AMI: ami-956e52f0
+      AMI: ami-8f4e74ea
     us-east-1:
-      AMI: ami-5253c32d
+      AMI: ami-fbc1c684
     us-west-2:
-      AMI: ami-d2f489aa
+      AMI: ami-7ddf8005
     us-west-1:
-      AMI: ami-6b81980b
+      AMI: ami-638c6100
     eu-west-3:
-      AMI: ami-ca75c4b7
+      AMI: ami-2187375c
     eu-west-2:
-      AMI: ami-3622cf51
+      AMI: ami-e8a04a8f
     eu-west-1:
-      AMI: ami-c91624b0
+      AMI: ami-74e7fe9e
     eu-central-1:
-      AMI: ami-10e6c8fb
+      AMI: ami-c123232a
     ap-northeast-2:
-      AMI: ami-7c69c112
+      AMI: ami-2095224e
     ap-northeast-1:
-      AMI: ami-f3f8098c
+      AMI: ami-2b4d26c6
     ap-southeast-2:
-      AMI: ami-bc04d5de
+      AMI: ami-09bf186b
     ap-southeast-1:
-      AMI: ami-b75a6acb
+      AMI: ami-3b1d59d1
     ca-central-1:
-      AMI: ami-da6cecbe
+      AMI: ami-06ac2162
+    ap-south-1:
+      AMI: ami-921d2efd
+    sa-east-1:
+      AMI: ami-0a8caa66
 
 Conditions:
   EnableSSL: !Equals [!Ref 'UseSSL', 'yes']
