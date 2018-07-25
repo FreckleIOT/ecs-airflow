@@ -264,3 +264,24 @@ __NOTE__: All changes should be done via the master stack
 `dev-airflow-ecs-services`. Do not update or destroy individual stacks
 within the nested stack as that will make it difficult to manage and
 deploy changes to the master stack running the ECS services.
+
+## Logging
+
+The current ECS deployment for Airflow is not capable of obtaining the
+logs from individual worker tasks because they are mapped to random ports
+on the host machine whereas the configuration only supports a specific
+port `8793`. Also, each worker is using its internal short hostname
+which is the Docker container ID which is not addressable between ECS
+Services.
+
+You will see the following message when trying to view the logs from an
+Airflow job:
+
+```
+*** Log file isn't local.
+*** Fetching here: http://673ee7a2fba0:8793/log/airflow-test/airflow-test-run/2018-07-25T01:00:51.105165/1.log
+*** Failed to fetch log file from worker. HTTPConnectionPool(host='673ee7a2fba0', port=8793): Max retries exceeded with url: /log/airflow-test/airflow-test-run/2018-07-25T01:00:51.105165/1.log (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7fb737ed0ef0>: Failed to establish a new connection: [Errno -2] Name or service not known',))```
+```
+
+These logs can be seen in CloudWatch Logs by searching the Log Streams
+beginning with `ecs-service/workers/*`.
