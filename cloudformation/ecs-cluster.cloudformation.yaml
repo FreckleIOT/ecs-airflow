@@ -551,7 +551,7 @@ Resources:
                 iam_role_name=${EcsInstanceRole}
                 uid=$(id -u ec2-user)
                 gid=$(id -g ec2-user)
-                echo "s3fs#${AirflowDagS3Bucket}  /mnt/${AirflowDagS3Bucket}  fuse  _netdev,allow_other,iam_role=${!iam_role_name},umask=022,uid=${!uid},gid=${!gid},use_cache=/root/cache 0 0" >> /etc/fstab
+                echo "s3fs#${AirflowDagS3Bucket}  /mnt/${AirflowDagS3Bucket}  fuse  _netdev,allow_other,noatime,iam_role=${!iam_role_name},umask=022,uid=${!uid},gid=${!gid}  0 0" >> /etc/fstab
 
                 echo "Mounting the S3 bucket '${AirflowDagS3Bucket}' to '/mnt/${AirflowDagS3Bucket}'..."
                 mount /mnt/${AirflowDagS3Bucket}
