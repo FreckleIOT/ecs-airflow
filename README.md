@@ -50,6 +50,13 @@ dags within the same bucket under different key prefixes.
 
 ### Build the docker image
 
+The CloudFormation templates use the ECR registry to pull Docker Images.
+However, it might be useful to push images to Docker Hub for developers
+that may not have access to AWS. The `build-docker-image` script
+support both ECR and Docker Hub.
+
+#### ECR
+
 Run the following command:
 ```bash
 eval $(aws ecr get-login --no-include-email --region us-west-2)
@@ -59,7 +66,19 @@ It will return a command to login to ECR. Run that command to login.
 To build the image make sure to change the Account ID:
 ```bash
 aws_account_id=changeme
-./build-docker-image ${aws_account_id} us-west-2 0.0.4
+./build-docker-image --repo ecr --aws-account-id ${aws_account_id} --region us-west-2 --version 0.0.4
+```
+
+#### Docker Hub
+
+Login to Docker Hub with your credentials
+```bash
+docker login
+```
+
+To build the image:
+```bash
+./build-docker-image --repo dockerhub --version 0.0.4
 ```
 
 ### Postgres (RDS)

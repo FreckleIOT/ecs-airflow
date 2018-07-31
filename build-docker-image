@@ -2,43 +2,96 @@
 
 prg=$0
 function usage() {
-    echo "Usage:"
-    echo "    ${prg} <aws account id> <region> <version> [image1 image2 ...]"
+	echo "Usage:"
+	echo "	${prg} --repo ecr --aws-account-id <aws account id> [--region <region>] --version <version> [--images image1,image2,...]"
+	echo "	where --region is optional if AWS_REGION or AWS_DEFAULT_REGION environment variables are set"
+	echo "OR"
+	echo "	${prg} --repo dockerhub --version <version> [--images image1,image2,...]"
 }
 
-aws_account_id=$1
-shift
-if [[ -z ${aws_account_id} ]]; then
-    echo "ERROR: Please enter your AWS account ID"
-    usage
-    exit 1
+POSITIONAL=()
+while [[ $# -gt 0 ]]
+do
+key="$1"
+
+case $key in
+	--repo)
+	repo="$2"
+	shift # past argument
+	shift # past value
+	;;
+	--aws-account-id)
+	aws_account_id="$2"
+	shift # past argument
+	shift # past value
+	;;
+	--region)
+	region="$2"
+	shift # past argument
+	shift # past value
+	;;
+	--version)
+	version="$2"
+	shift # past argument
+	shift # past value
+	;;
+	--images)
+	images=$(echo "$2" | sed -e "s/,/ /g")
+	shift # past argument
+	shift # past value
+	;;
+	*)	# unknown option
+	POSITIONAL+=("$1") # save it in an array for later
+	shift # past argument
+	;;
+esac
+done
+set -- "${POSITIONAL[@]}" # restore positional parameters
+
+if [[ -z ${repo} ]]; then
+	echo "ERROR: Please specify --repo"
+	usage
+	exit 1
+fi
+if [[ "${repo}" == "ecr" ]]; then
+	if [[ -z ${aws_account_id} ]]; then
+		echo "ERROR: Please specify --aws-account-id"
+		usage
+		exit 1
+	fi
+
+	if [[ -z ${region} ]]; then
+        if [[ -n ${AWS_DEFAULT_REGION} ]]; then
+            region=${AWS_DEFAULT_REGION}
+        elif [[ -n ${AWS_REGION} ]]; then
+            region=${AWS_REGION}
+        else
+		    echo "ERROR: Please specify --region or set either AWS_REGION or AWS_DEFAULT_REGION environment variable"
+		    usage
+		    exit 1
+        fi
+	fi
+
+	image_prefix="${aws_account_id}.dkr.ecr.${region}.amazonaws.com"
+elif [[ "${repo}" == "dockerhub" ]]; then
+	image_prefix="freckleiot"
 fi
 
-region=$1
-shift
-if [[ -z ${region} ]]; then
-    echo "ERROR: Please enter the AWS region"
-    usage
-    exit 1
-fi
-
-version=$1
-shift
 if [[ -z ${version} ]]; then
-    echo "ERROR: Please enter the image version"
-    usage
-    exit 1
+	echo "ERROR: Please specify --version"
+	usage
+	exit 1
 fi
-images=$@
+
 if [[ -z ${images} ]]; then
-    echo Building all images
-    images="airflow"
+	echo Building all images
+	images="airflow"
 fi
 
 for image in ${images}; do
 	pushd docker/${image}
 	docker build . -t ${image}:${version}
-	docker tag ${image}:${version} ${aws_account_id}.dkr.ecr.${region}.amazonaws.com/${image}:${version}
-	docker push ${aws_account_id}.dkr.ecr.us-west-2.amazonaws.com/${image}:${version}
+	docker tag ${image}:${version} ${image_prefix}/${image}:${version}
+	docker push ${image_prefix}/${image}:${version}
 	popd
 done
