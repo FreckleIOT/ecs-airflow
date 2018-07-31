@@ -30,7 +30,7 @@ Parameters:
     Type: String
     Description: Allows SSH access to cluster instances?
     AllowedValues: ['yes', 'no']
-    Description: Must be either yes or no
+    ConstraintDescription: Must be either yes or no
     Default: 'yes'
   BastionStack:
     Type: String
@@ -45,7 +45,7 @@ Parameters:
     Type: String
     Description: Use SSL to serve traffic? Do not specify Certificate ARN if you select no.
     AllowedValues: ['yes', 'no']
-    Description: Must be either yes or no
+    ConstraintDescription: Must be either yes or no
     Default: 'yes'
   CertificateArn:
     Type: String
@@ -53,6 +53,9 @@ Parameters:
       SSL certificates ARN to assign to ALB (See Certificate Mangager for the ARN). Leave empty if you set
       UseSSL to no
   AllowedCidrIp1:
+    Type: String
+    Description: Allowed IP range for inbound access
+  AllowedCidrIp2:
     Type: String
     Description: Allowed IP range for inbound access
   LoadBalancerSubnetIds:
@@ -216,8 +219,11 @@ Conditions:
   DisableSSL: !Not [!Condition EnableSSL]
   EnableSSH: !And [!Equals [!Ref 'AllowSSH', 'yes'], !Not [!Equals [!Ref BastionStack, '']]]
   AllowCidrIp1: !Not [ !Equals [ !Ref AllowedCidrIp1, '' ] ]
+  AllowCidrIp2: !Not [ !Equals [ !Ref AllowedCidrIp2, '' ] ]
   EnableLoadBalancerHTTP1: !And [!Condition DisableSSL, !Condition AllowCidrIp1]
   EnableLoadBalancerHTTPS1: !And [!Condition EnableSSL, !Condition AllowCidrIp1]
+  EnableLoadBalancerHTTP2: !And [!Condition DisableSSL, !Condition AllowCidrIp2]
+  EnableLoadBalancerHTTPS2: !And [!Condition EnableSSL, !Condition AllowCidrIp2]
 
 Resources:
   LogGroup:
@@ -326,6 +332,24 @@ Resources:
       FromPort: 443
       ToPort: 443
       CidrIp: !Ref AllowedCidrIp1
+  LoadBalancerHTTPIngress2:
+    Condition: EnableLoadBalancerHTTP2
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref LoadBalancerSecurityGroup
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      CidrIp: !Ref AllowedCidrIp2
+  LoadBalancerHTTPSIngress2:
+    Condition: EnableLoadBalancerHTTPS2
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref LoadBalancerSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: !Ref AllowedCidrIp2
 
   # Application Load Balancer
   # All services in this cluster should use this ALB

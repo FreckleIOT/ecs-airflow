@@ -235,8 +235,6 @@ Resources:
               Value: !Ref AppContainerPort
             - Name: GUNICORN_CMD_ARGS
               Value: '--forwarded-allow-ips *'
-            - Name: AIRFLOW__API__AUTH_BACKEND
-              Value: 'airflow.api.auth.backend.deny_all'
   Service:
     Type: AWS::ECS::Service
     DependsOn:

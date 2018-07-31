@@ -236,6 +236,13 @@ Resources:
                 - '/'
                 - - Fn::ImportValue: !Sub '${EcsStackName}-AirflowDagS3BucketMountPath'
                   - dags
+        - Name: plugins
+          Host:
+            SourcePath:
+              Fn::Join:
+              - '/'
+              - - Fn::ImportValue: !Sub '${EcsStackName}-AirflowDagS3BucketMountPath'
+                - plugins
       ContainerDefinitions:
         - Name: !Ref AppName
           Image: !Ref AirflowDockerImage
@@ -247,6 +254,8 @@ Resources:
           MountPoints:
             - SourceVolume: dags
               ContainerPath: /usr/local/airflow/dags
+            - SourceVolume: plugins
+              ContainerPath: /usr/local/airflow/plugins
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -323,8 +332,6 @@ Resources:
               Value: !Ref SMTPSSL
             - Name: AIRFLOW__SMTP__SMTP_MAIL_FROM
               Value: !Ref SMTPFrom
-            - Name: AIRFLOW__API__AUTH_BACKEND
-              Value: 'airflow.api.auth.backend.deny_all'
   Service:
     Type: AWS::ECS::Service
     DependsOn:
