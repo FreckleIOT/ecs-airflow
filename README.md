@@ -101,7 +101,7 @@ included instructions below on how to connect to it over an SSH tunnel.
       "MultiAZDeployment": "true",
       "PostgresMasterUsername": "airflow_user",
       "KmsKeyId": "arn:aws:kms:us-west-2:************:key/********-****-****-****-************",
-      "Project": "Freckle IoT",
+      "Organization": "Freckle IoT",
       "Team": "Freckle",
       "Environment": "dev",
       "Component": "Airflow"
@@ -151,7 +151,7 @@ the RDS cluster and are private subnets.
       "RedisCacheNodeType": "cache.t2.small",
       "RedisVersion": "4.0.10",
       "AllowedCIDR": "10.0.0.0/16",
-      "Project": "Airflow Project",
+      "Organization": "My Org",
       "Team": "Airflow Team",
       "Environment": "dev",
       "Component": "Airflow"
@@ -183,11 +183,12 @@ subnets.
       "CertificateArn": "arn:aws:acm:us-west-2:************:certificate/********-****-****-****-************",
       "LoadBalancerType": "internet-facing",
       "AllowedCidrIp1": "changeme",
+      "AllowedCidrIp2": "changeme",
       "CloudWatchLogGroup": "dev-airflow",
       "CloudWatchLogRetentionInDays": 180,
       "AirflowDagS3Bucket": "changeme",
       "KeyName": "changeme",
-      "Project": "Airflow Project",
+      "Organization": "My Org",
       "Team": "Airflow Team",
       "Environment": "dev",
       "Component": "Airflow"
@@ -244,7 +245,7 @@ parameters.
     "SMTPPort": "change",
     "SMTPStartTLS": "changeme",
     "SMTPSSL": "changeme",
-    "Project": "Airflow Project",
+    "Organization": "My Org",
     "Team": "Airflow Team",
     "Environment": "dev",
     "Component": "Airflow"
