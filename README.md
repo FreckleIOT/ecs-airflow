@@ -40,12 +40,6 @@ used by `puckel/docker-airflow:1.9.0-4` which is used for our ECS
 docker image. If there is a mismatch between OpenSSL versions the
 containers will not be able to decrypt passwords and keys.
 
-### S3 Bucket for Airflow DAGs and Plugins
-
-You will need to create an S3 bucket to store the DAGs and plugins.
-You can have separate buckets based on environment or organize
-dags within the same bucket under different key prefixes.
-
 ## Deploying Cloudformation Stack
 
 ### Build the docker image
@@ -186,7 +180,6 @@ subnets.
       "AllowedCidrIp2": "changeme",
       "CloudWatchLogGroup": "dev-airflow",
       "CloudWatchLogRetentionInDays": 180,
-      "AirflowDagS3Bucket": "changeme",
       "KeyName": "changeme",
       "Organization": "My Org",
       "Team": "Airflow Team",
@@ -201,6 +194,15 @@ Deploy the Cloudformation template:
 ./deploy-stack cloudformation/ecs-cluster.cloudformation.yaml \
     dev-airflow-ecs ../ecs-airflow-config/dev-airflow-ecs.json
 ```
+
+__NOTES:__
+- The Cloudformation stack will also create an S3 bucket with the same
+name as the stack.
+- The bucket will have versioning enabled although, s3fs does not itself
+support object versions it will always show the latest version of the S3
+objects.
+- The bucket also has the __DeletionPolicy__ set to _Retain_ so if the
+stack is terminated, the bucket will be left behind.
 
 ### Airflow Components
 

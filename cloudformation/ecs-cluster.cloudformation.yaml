@@ -93,11 +93,6 @@ Parameters:
     Description: Name of CloudFormation stack hosting the Elasticsearch domain for logs
     MinLength: 1
     ConstraintDescription: Must be a string of length > 1
-  AirflowDagS3Bucket:
-    Type: String
-    Description: Name of S3 bucket containing Airflow DAGs
-    AllowedPattern: '^[A-Za-z0-9][A-Za-z0-9\-]{1,61}[A-Za-z0-9]$'
-    ConstraintDescription: Please specify a valid bucket name
   Organization:
     Type: String
     Description: Organization tag
@@ -239,6 +234,23 @@ Resources:
       DestinationArn:
         Fn::ImportValue: !Sub '${ElasticsearchLogsStack}-LambdaFunctionArn'
       FilterPattern: ''
+
+  DagS3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Ref 'AWS::StackName'
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+      - Key: Organization
+        Value: !Ref Organization
+      - Key: Team
+        Value: !Ref Team
+      - Key: Environment
+        Value: !Ref Environment
+      - Key: Component
+        Value: !Ref Component
 
   # Security Groups
   #   - Load Balancer Security Group
@@ -465,14 +477,14 @@ Resources:
                   - 's3:HeadBucket'
               - Effect: Allow
                 Resource:
-                  - !Sub 'arn:aws:s3:::${AirflowDagS3Bucket}'
+                  - !Sub '${DagS3Bucket.Arn}'
                 Action:
                   - 's3:ListBucket'
                   - 's3:GetBucketLocation'
                   - 's3:ListBucketMultipartUploads'
               - Effect: Allow
                 Resource:
-                  - !Sub 'arn:aws:s3:::${AirflowDagS3Bucket}/*'
+                  - !Sub '${DagS3Bucket.Arn}/*'
                 Action:
                   - 's3:AbortMultipartUpload'
                   - 's3:DeleteObject'
@@ -572,21 +584,21 @@ Resources:
                 echo "Installing s3fuse..."
                 make install
 
-                echo "Creating mount folder '/mnt/${AirflowDagS3Bucket}'..."
-                mkdir -p /mnt/${AirflowDagS3Bucket}
+                echo "Creating mount folder '/mnt/${DagS3Bucket}'..."
+                mkdir -p /mnt/${DagS3Bucket}
 
-                echo "Configuring mount point '/mnt/${AirflowDagS3Bucket}'..."
+                echo "Configuring mount point '/mnt/${DagS3Bucket}'..."
                 iam_role_name=${EcsInstanceRole}
                 uid=$(id -u ec2-user)
                 gid=$(id -g ec2-user)
-                echo "s3fs#${AirflowDagS3Bucket}  /mnt/${AirflowDagS3Bucket}  fuse  _netdev,allow_other,noatime,iam_role=${!iam_role_name},umask=022,uid=${!uid},gid=${!gid}  0 0" >> /etc/fstab
+                echo "s3fs#${DagS3Bucket}  /mnt/${DagS3Bucket}  fuse  _netdev,allow_other,noatime,iam_role=${!iam_role_name},,url=https://s3-${AWS::Region}.amazonaws.com,endpoint=${AWS::Region},umask=022,uid=${!uid},gid=${!gid}  0 0" >> /etc/fstab
 
-                echo "Mounting the S3 bucket '${AirflowDagS3Bucket}' to '/mnt/${AirflowDagS3Bucket}'..."
-                mount /mnt/${AirflowDagS3Bucket}
+                echo "Mounting the S3 bucket '${DagS3Bucket}' to '/mnt/${DagS3Bucket}'..."
+                mount /mnt/${DagS3Bucket}
 
                 # Create DAG folder on mounted bucket
-                echo "Ensuring DAG folder '/mnt/${AirflowDagS3Bucket}/dags' exists..."
-                mkdir -p /mnt/${AirflowDagS3Bucket}/dags
+                echo "Ensuring DAG folder '/mnt/${DagS3Bucket}/dags' exists..."
+                mkdir -p /mnt/${DagS3Bucket}/dags
 
                 echo "Setup s3fuse complete."
             "/etc/awslogs/awslogs.conf":
@@ -879,7 +891,7 @@ Outputs:
 
   AirflowDagS3BucketMountPath:
     Description: The folder where the S3 bucket for DAGs is mounted
-    Value: !Sub '/mnt/${AirflowDagS3Bucket}'
+    Value: !Sub '/mnt/${DagS3Bucket}'
     Export:
       Name: !Sub '${AWS::StackName}-AirflowDagS3BucketMountPath'
   CloudWatchLogGroup:
