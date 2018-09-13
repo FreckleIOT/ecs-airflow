@@ -24,15 +24,6 @@ Parameters:
     MaxValue: 1000
     ConstraintDescription: Must be a number between 100 and 1000
     Default: 100
-  StorageIops:
-    Type: Number
-    Description: |
-      The number of I/O operations per second. Must be greater than or equal to 100.
-      See https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Storage.html#USER_PIOPS for guidelines
-    MinValue: 1000
-    MaxValue: 4000
-    ConstraintDescription: Must be a number between 1000 and 4000
-    Default: 1000
   PostgresVersion:
     Type: String
     Description: Postgres version
@@ -167,7 +158,6 @@ Metadata:
           - PostgresMasterPassword
           - DbInstanceType
           - StorageInGb
-          - StorageIops
           - BackupRetentionInDays
       - Label:
           default: Network
@@ -246,7 +236,6 @@ Resources:
       DBName: !Ref DatabaseName
       DBInstanceClass: !Ref DbInstanceType
       BackupRetentionPeriod: !Ref BackupRetentionInDays
-      Iops: !Ref StorageIops
       MultiAZ: !Ref MultiAZDeployment
       VPCSecurityGroups:
         - !Ref PostgresComponentSG
