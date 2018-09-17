@@ -28,6 +28,9 @@ if [[ -n ${KMS_DATA_KEY} ]]; then
 		echo "Decrypting POSTGRES_PASSWORD_ENC..."
 		export POSTGRES_PASSWORD=$(openssl enc -d -aes256 -k <(echo "${kms_data_key_plaintext}") \
 			-in <(echo "${POSTGRES_PASSWORD_ENC}" | base64 -d))
+	elif [[ -n "${SSM_POSTGRES_PASSWORD}" ]]; then
+		echo "Fetching SSM_POSTGRES_PASSWORD..."
+		export POSTGRES_PASSWORD=$(aws ssm get-parameter --name "${SSM_POSTGRES_PASSWORD}" --with-decryption --query "Parameter.Value" --output text)
 	fi
 
 	if [[ -n "${GOOGLE_OAUTH_CLIENT_SECRET_ENC}" ]]; then
