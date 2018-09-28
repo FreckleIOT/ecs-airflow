@@ -232,7 +232,7 @@ Resources:
             - Name: AIRFLOW__CELERY__FLOWER_PORT
               Value: !Ref AppContainerPort
             - Name: GUNICORN_CMD_ARGS
-              Value: '--forwarded-allow-ips *'
+              Value: '--forwarded-allow-ips * --keep-alive 30'
   Service:
     Type: AWS::ECS::Service
     DependsOn:

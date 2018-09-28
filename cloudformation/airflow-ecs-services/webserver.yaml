@@ -315,7 +315,7 @@ Resources:
             - Name: AIRFLOW__GOOGLE__DOMAIN
               Value: !Ref GoogleOAuthDomain
             - Name: GUNICORN_CMD_ARGS
-              Value: '--forwarded-allow-ips *'
+              Value: '--forwarded-allow-ips * --keep-alive 30'
             - Name: AIRFLOW__SMTP__SMTP_USER
               Value: !Ref SMTPUser
             - Name: SMTP_PASSWORD_ENC
