@@ -177,8 +177,6 @@ Resources:
         DNSName:
           Fn::ImportValue: !Sub '${EcsStackName}-LoadBalancerDNSName'
       HostedZoneId: !Ref HostedZoneId
-      SetIdentifier: !Ref AWS::StackName
-      Weight: 50
       Name: !Sub '${DNSPrefix}.${HostedZoneName}'
       Type: A
   TargetGroup:
