@@ -177,8 +177,6 @@ Resources:
         DNSName:
           Fn::ImportValue: !Sub '${EcsStackName}-LoadBalancerDNSName'
       HostedZoneId: !Ref HostedZoneId
-      SetIdentifier: !Ref AWS::StackName
-      Weight: 50
       Name: !Sub '${DNSPrefix}.${HostedZoneName}'
       Type: A
   TargetGroup:
@@ -196,6 +194,12 @@ Resources:
       TargetGroupAttributes:
         - Key: deregistration_delay.timeout_seconds
           Value: 300
+        - Key: stickiness.enabled
+          Value: true
+        - Key: stickiness.type
+          Value: lb_cookie
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: 86400
       UnhealthyThresholdCount: 3
       VpcId:
         Fn::ImportValue: !Sub '${EcsStackName}-VpcId'
@@ -317,7 +321,7 @@ Resources:
             - Name: AIRFLOW__GOOGLE__DOMAIN
               Value: !Ref GoogleOAuthDomain
             - Name: GUNICORN_CMD_ARGS
-              Value: '--forwarded-allow-ips *'
+              Value: '--forwarded-allow-ips * --keep-alive 30'
             - Name: AIRFLOW__SMTP__SMTP_USER
               Value: !Ref SMTPUser
             - Name: SMTP_PASSWORD_ENC
