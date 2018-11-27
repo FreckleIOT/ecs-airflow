@@ -1,4 +1,4 @@
-FROM puckel/docker-airflow:1.10.0-5
+FROM puckel/docker-airflow:1.10.1
 
 MAINTAINER 'Freckle IoT'
 

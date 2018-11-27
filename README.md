@@ -60,7 +60,7 @@ It will return a command to login to ECR. Run that command to login.
 To build the image make sure to change the Account ID:
 ```bash
 aws_account_id=changeme
-./build-docker-image --repo ecr --aws-account-id ${aws_account_id} --region us-west-2 --version 0.0.5
+./build-docker-image --repo ecr --aws-account-id ${aws_account_id} --region us-west-2 --version 0.0.6
 ```
 
 #### Docker Hub
@@ -72,7 +72,7 @@ docker login
 
 To build the image:
 ```bash
-./build-docker-image --repo dockerhub --version 0.0.5
+./build-docker-image --repo dockerhub --version 0.0.6
 ```
 
 ### Postgres (RDS)
